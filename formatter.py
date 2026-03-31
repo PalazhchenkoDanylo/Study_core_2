@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class Formatter:
@@ -36,7 +36,7 @@ class Formatter:
     def time_until(deadline_str: str) -> str:
         try:
             deadline = datetime.strptime(deadline_str, "%Y-%m-%d %H:%M:%S")
-            diff = deadline - datetime.utcnow()
+            diff = deadline - (datetime.utcnow() + timedelta(hours=2))
             if diff.total_seconds() < 0:
                 return "⚠️ overdue"
             days = diff.days

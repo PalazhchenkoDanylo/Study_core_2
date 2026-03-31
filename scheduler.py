@@ -21,7 +21,7 @@ class TaskScheduler:
 
     async def _check_reminders(self):
         tasks = await self.db.get_all_active_tasks()
-        now = datetime.utcnow()
+        now = datetime.utcnow() + timedelta(hours=1)  # Adjust for timezone if needed
 
         for task in tasks:
             await self._process_task(dict(task), now)
