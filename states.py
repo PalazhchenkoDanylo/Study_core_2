@@ -14,3 +14,7 @@ class EditTask(StatesGroup):
     title = State()
     description = State()
     deadline = State()
+
+
+class AIChat(StatesGroup):
+    chatting = State()

@@ -13,6 +13,7 @@ class KeyboardBuilder:
                 [KeyboardButton(text="➕ Add Task"), KeyboardButton(text="📋 All Tasks")],
                 [KeyboardButton(text="🔥 Upcoming"), KeyboardButton(text="📚 By Subject")],
                 [KeyboardButton(text="✅ Completed"), KeyboardButton(text="📊 Statistics")],
+                [KeyboardButton(text="🤖 Ask AI")],
             ],
             resize_keyboard=True
         )
@@ -46,6 +47,10 @@ class KeyboardBuilder:
         ])
 
     @staticmethod
-    def subjects(subjects: list[str]) -> InlineKeyboardMarkup:
+    def stop_ai() -> ReplyKeyboardMarkup:
+        return ReplyKeyboardMarkup(
+            keyboard=[[KeyboardButton(text="🛑 End AI Chat")]],
+            resize_keyboard=True
+        )
         buttons = [[InlineKeyboardButton(text=s, callback_data=f"subject:{s}")] for s in subjects]
         return InlineKeyboardMarkup(inline_keyboard=buttons)

@@ -1,1 +1,14 @@
+# Secrets
 .env
+
+# Database
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+.venv/

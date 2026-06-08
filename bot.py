@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from database import Database
 from handlers import TaskHandlers
 from scheduler import TaskScheduler
+from ai_assistant import AIAssistant
 
 load_dotenv()
 logging.basicConfig(
@@ -21,19 +22,21 @@ class DeadlineBot:
     def __init__(self):
         self.token = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
         self.db_path = os.getenv("DB_PATH", "deadlines.db")
+        self.gemini_key = os.getenv("GROQ_API_KEY", "")
 
         self.bot = Bot(token=self.token)
         self.dp = Dispatcher(storage=MemoryStorage())
         self.db = Database(self.db_path)
         self.scheduler = TaskScheduler(self.bot, self.db)
-        self.handlers = TaskHandlers(self.db)
+        self.ai = AIAssistant(self.gemini_key) if self.gemini_key else None
+        self.handlers = TaskHandlers(self.db, self.ai)
 
         self.dp.include_router(self.handlers.router)
 
     async def start(self):
         await self.db.init()
         self.scheduler.start()
-        logging.info("✅ DeadlineBot запущен!")
+        logging.info("✅ Study Core bot started!")
         try:
             await self.dp.start_polling(
                 self.bot,
@@ -42,7 +45,7 @@ class DeadlineBot:
         finally:
             self.scheduler.stop()
             await self.bot.session.close()
-            logging.info("Bot остановлен.")
+            logging.info("Bot stopped.")
 
 
 if __name__ == "__main__":

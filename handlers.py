@@ -6,14 +6,16 @@ from aiogram.types import Message, CallbackQuery
 from database import Database
 from formatter import Formatter
 from keyboard_builder import KeyboardBuilder
-from states import AddTask, EditTask
+from states import AddTask, EditTask, AIChat
+from ai_assistant import AIAssistant
 
 CANCEL_TEXT = "❌ Cancel"
 
 
 class TaskHandlers:
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, ai: AIAssistant | None = None):
         self.db = db
+        self.ai = ai
         self.router = Router()
         self._register_handlers()
 
@@ -52,6 +54,13 @@ class TaskHandlers:
         r.message.register(self.stats, F.text == "📊 Statistics")
         r.message.register(self.stats, Command("stats"))
 
+        # AI Assistant
+        r.message.register(self.ask_ai_start, F.text == "🤖 Ask AI")
+        r.message.register(self.ask_ai_stop, Command("end"), AIChat.chatting)
+        r.message.register(self.ask_ai_stop, Command("stop"), AIChat.chatting)
+        r.message.register(self.ask_ai_stop, F.text == "🛑 End AI Chat", AIChat.chatting)
+        r.message.register(self.ask_ai_chat, AIChat.chatting)
+
         # Callbacks
         r.callback_query.register(self.cb_mark_done, F.data.startswith("done:"))
         r.callback_query.register(self.cb_delete, F.data.startswith("delete:"))
@@ -82,7 +91,8 @@ class TaskHandlers:
             "/list — all active tasks\n"
             "/upcoming — deadlines in the next 48h\n"
             "/done — completed tasks\n"
-            "/stats — statistics\n\n"
+            "/stats — statistics\n"
+            "/ask &lt;question&gt; — ask the AI assistant\n\n"
             "Date format: <code>31.12.2025 23:59</code>",
             parse_mode="HTML"
         )
@@ -224,6 +234,55 @@ class TaskHandlers:
             parse_mode="HTML"
         )
 
+    # ── AI Assistant ──────────────────────────────────────────────────────────
+
+    async def ask_ai_start(self, message: Message, state: FSMContext):
+        """Starts AI chat session when user taps 🤖 Ask AI."""
+        if not self.ai:
+            return await message.answer(
+                "⚠️ AI assistant is not configured.\n"
+                "Add <code>GROQ_API_KEY</code> to your .env file.",
+                parse_mode="HTML"
+            )
+        await state.set_state(AIChat.chatting)
+        await state.update_data(history=[])
+        await message.answer(
+            "🤖 <b>AI Study Assistant</b>\n\n"
+            "I'm here to help with any academic topic — math, science, "
+            "history, programming, literature, and more.\n\n"
+            "Just type your question and I'll answer. You can follow up "
+            "and ask clarifying questions naturally.\n\n"
+            "Type /end to finish the conversation.",
+            parse_mode="HTML",
+            reply_markup=KeyboardBuilder.stop_ai()
+        )
+
+    async def ask_ai_chat(self, message: Message, state: FSMContext):
+        """Handles messages during an active AI chat session."""
+        data = await state.get_data()
+        history = data.get("history", [])
+
+        # Add user message to history
+        history.append({"role": "user", "content": message.text})
+
+        thinking = await message.answer("🤔 Thinking...")
+        try:
+            answer = await self.ai.ask_with_history(history)
+            # Add assistant reply to history
+            history.append({"role": "assistant", "content": answer})
+            await state.update_data(history=history)
+            await thinking.edit_text(f"🤖 {answer}")
+        except Exception as e:
+            await thinking.edit_text("❌ Something went wrong. Please try again.")
+
+    async def ask_ai_stop(self, message: Message, state: FSMContext):
+        """Ends the AI chat session."""
+        await state.clear()
+        await message.answer(
+            "✅ AI chat ended. Back to the main menu!",
+            reply_markup=KeyboardBuilder.main_menu()
+        )
+
     # ── Callbacks ─────────────────────────────────────────────────────────────
 
     async def cb_mark_done(self, callback: CallbackQuery):
@@ -268,6 +327,8 @@ class TaskHandlers:
         )
         await callback.answer()
 
+    # ── Edit Task FSM ─────────────────────────────────────────────────────────
+
     async def edit_subject(self, message: Message, state: FSMContext):
         if message.text == CANCEL_TEXT:
             return await self._cancel(message, state)
@@ -306,6 +367,8 @@ class TaskHandlers:
         )
         await state.clear()
         await message.answer("✅ Task updated!", reply_markup=KeyboardBuilder.main_menu())
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
 
     async def _cancel(self, message: Message, state: FSMContext):
         await state.clear()
